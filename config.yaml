@@ -20,8 +20,9 @@ plc_coils:
   '3': 2
   '4': 3
 session: default
-telegram_chat_id: '-5191012571'
+telegram_chat_id: '-51'
 telegram_enabled: true
-telegram_token: 8277840015:AAGpvC3GuhTLFBDVg4MfCnXIKwEg8Z1-2l0
+telegram_token: 8277840015:AAGpvC3Guh
 waha_enabled: false
 waha_url: http://localhost:3001/api/sendImage
+
