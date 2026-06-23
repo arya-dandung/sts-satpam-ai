@@ -10,7 +10,7 @@ class YoloDataPipelineApp:
     def __init__(self, root):
         self.root = root
         self.root.title("YOLOv8 OBB Dataset Pipeline Tool")
-        self.root.geometry("600x650")
+        self.root.geometry("600x700") # Tinggi sedikit ditambah untuk menu augmentasi
         self.root.resizable(False, False)
 
         self.project_dir = tk.StringVar()
@@ -50,11 +50,11 @@ class YoloDataPipelineApp:
             folders = ['1_Raw_Images', '2_Exported_AnyLabeling', '3_Augmented', '4_YOLO_Ready']
             for f in folders:
                 os.makedirs(os.path.join(folder, f), exist_ok=True)
-            messagebox.showinfo("Project Disetel", f"Struktur folder berhasil dibuat di:\n{folder}\n\nSilakan lanjut ke Tab 1.")
+            messagebox.showinfo("Project Disetel", f"Struktur folder berhasil dibuat di:\n{folder}")
 
     def check_project_ready(self):
         if not self.project_dir.get():
-            messagebox.showwarning("Peringatan", "Pilih Folder Project Utama terlebih dahulu di bagian atas!")
+            messagebox.showwarning("Peringatan", "Pilih Folder Project Utama terlebih dahulu!")
             return False
         return True
 
@@ -63,7 +63,6 @@ class YoloDataPipelineApp:
         tk.Label(self.tab_grab, text="Setup Kelas & Grab Gambar", font=("Arial", 12, "bold")).pack(pady=15)
         
         tk.Label(self.tab_grab, text="Daftar Nama Objek/Kelas (pisahkan koma):").pack(anchor="w", padx=50)
-        tk.Label(self.tab_grab, text="Aplikasi akan otomatis membuat classes.txt dari isian ini", fg="gray", font=("Arial", 8)).pack(anchor="w", padx=50)
         self.entry_cls = tk.Entry(self.tab_grab, width=50)
         self.entry_cls.insert(0, "truk, mobil")
         self.entry_cls.pack(pady=5, padx=50)
@@ -75,35 +74,27 @@ class YoloDataPipelineApp:
         self.entry_cam.insert(0, "0")
         self.entry_cam.pack(pady=5)
         
-        tk.Label(self.tab_grab, text="Tekan 'S' untuk memotret, 'Q' untuk keluar.", fg="gray").pack(pady=5)
         tk.Button(self.tab_grab, text="SIMPAN KELAS & BUKA KAMERA", bg="#4CAF50", fg="white", font=("Arial", 10, "bold"), command=self.run_grab).pack(pady=15, fill="x", padx=50)
 
     def run_grab(self):
         if not self.check_project_ready(): return
         
-        # 1. Generate classes.txt otomatis di folder project utama
         classes_text = self.entry_cls.get()
         classes_list = [c.strip() for c in classes_text.split(",") if c.strip()]
-        if not classes_list:
-            messagebox.showwarning("Peringatan", "Harap isi minimal 1 nama kelas!")
-            return
-            
-        classes_file = os.path.join(self.project_dir.get(), "classes.txt")
-        with open(classes_file, "w") as f:
+        with open(os.path.join(self.project_dir.get(), "classes.txt"), "w") as f:
             f.write("\n".join(classes_list))
             
-        # 2. Proses Buka Kamera
         source = self.entry_cam.get()
         source = int(source) if source.isdigit() else source
-        
         save_dir = os.path.join(self.project_dir.get(), '1_Raw_Images')
+        
         cap = cv2.VideoCapture(source)
         if not cap.isOpened():
             messagebox.showerror("Error", "Kamera/RTSP tidak dapat diakses!")
             return
 
         count = len([f for f in os.listdir(save_dir) if f.endswith('.jpg')])
-        messagebox.showinfo("Info", f"File classes.txt berhasil dibuat!\n\nKamera akan terbuka, fokus ke jendela kamera.\nTekan S untuk Simpan, Q untuk Keluar.")
+        messagebox.showinfo("Info", "Kamera terbuka.\nTekan S untuk memotret, Q untuk keluar.")
         
         while True:
             ret, frame = cap.read()
@@ -122,56 +113,125 @@ class YoloDataPipelineApp:
 
     # ================= TAB 2: AUGMENTASI =================
     def setup_tab_aug(self):
-        tk.Label(self.tab_aug, text="Augmentasi YOLO OBB", font=("Arial", 12, "bold")).pack(pady=15)
-        tk.Label(self.tab_aug, text="Pastikan gambar sudah dilabeli & diekspor format YOLO OBB\nke folder '2_Exported_AnyLabeling'.\n(Gunakan classes.txt di folder project saat export!)", justify="center", fg="red").pack(pady=5)
+        tk.Label(self.tab_aug, text="Augmentasi YOLO OBB", font=("Arial", 12, "bold")).pack(pady=10)
+        tk.Label(self.tab_aug, text="Pilih variasi yang ingin diterapkan pada gambar:", fg="gray").pack()
         
-        frame_aug = tk.Frame(self.tab_aug)
-        frame_aug.pack(pady=15)
-        tk.Label(frame_aug, text="Jumlah variasi per gambar:").pack(side="left")
-        self.entry_aug_count = tk.Entry(frame_aug, width=5)
+        # Pilihan Augmentasi
+        frame_opts = tk.Frame(self.tab_aug)
+        frame_opts.pack(pady=10)
+        
+        self.var_flip = tk.BooleanVar(value=True)
+        self.var_rot = tk.BooleanVar(value=True)
+        self.var_bright = tk.BooleanVar(value=True)
+        self.var_noise = tk.BooleanVar(value=False)
+
+        tk.Checkbutton(frame_opts, text="Horizontal Flip", variable=self.var_flip).grid(row=0, column=0, sticky="w", padx=10)
+        tk.Checkbutton(frame_opts, text="Rotasi Acak (±30°)", variable=self.var_rot).grid(row=0, column=1, sticky="w", padx=10)
+        tk.Checkbutton(frame_opts, text="Kecerahan/Kontras", variable=self.var_bright).grid(row=1, column=0, sticky="w", padx=10)
+        tk.Checkbutton(frame_opts, text="Bintik/Noise", variable=self.var_noise).grid(row=1, column=1, sticky="w", padx=10)
+        
+        frame_count = tk.Frame(self.tab_aug)
+        frame_count.pack(pady=15)
+        tk.Label(frame_count, text="Jumlah variasi per gambar:").pack(side="left")
+        self.entry_aug_count = tk.Entry(frame_count, width=5)
         self.entry_aug_count.insert(0, "3")
         self.entry_aug_count.pack(side="left", padx=10)
 
-        tk.Button(self.tab_aug, text="MULAI AUGMENTASI", bg="#2196F3", fg="white", font=("Arial", 10, "bold"), command=self.run_aug).pack(pady=20, fill="x", padx=50)
+        tk.Button(self.tab_aug, text="MULAI AUGMENTASI", bg="#2196F3", fg="white", font=("Arial", 10, "bold"), command=self.run_aug).pack(pady=10, fill="x", padx=50)
 
     def run_aug(self):
         if not self.check_project_ready(): return
         
-        input_dir = os.path.join(self.project_dir.get(), '2_Exported_AnyLabeling')
-        output_dir = os.path.join(self.project_dir.get(), '3_Augmented')
-        src_img_dir = os.path.join(input_dir, 'images')
-        src_lbl_dir = os.path.join(input_dir, 'labels')
+        proj_dir = self.project_dir.get()
+        raw_dir = os.path.join(proj_dir, '1_Raw_Images')
+        export_dir = os.path.join(proj_dir, '2_Exported_AnyLabeling')
+        output_dir = os.path.join(proj_dir, '3_Augmented')
         
-        if not os.path.exists(src_img_dir) or not os.listdir(src_img_dir):
-            messagebox.showerror("Error", "Folder '2_Exported_AnyLabeling/images' kosong!")
-            return
-
         out_img_dir = os.path.join(output_dir, 'images')
         out_lbl_dir = os.path.join(output_dir, 'labels')
         os.makedirs(out_img_dir, exist_ok=True)
         os.makedirs(out_lbl_dir, exist_ok=True)
 
+        # Cek apakah ada file TXT di folder export
+        txt_files = [f for f in os.listdir(export_dir) if f.endswith('.txt')]
+        if not txt_files:
+            messagebox.showerror("Error", "Tidak ada file label (.txt) di folder '2_Exported_AnyLabeling'.")
+            return
+
+        # Merakit Pilihan Augmentasi
+        transforms = []
+        if self.var_flip.get(): transforms.append(A.HorizontalFlip(p=0.5))
+        if self.var_rot.get(): transforms.append(A.Rotate(limit=30, p=0.6, border_mode=cv2.BORDER_CONSTANT))
+        if self.var_bright.get(): transforms.append(A.RandomBrightnessContrast(p=0.5))
+        if self.var_noise.get(): transforms.append(A.GaussNoise(p=0.4))
+
+        # Menggunakan KeypointParams karena format YOLO OBB Ultralytics adalah 8 titik (4 sudut x,y)
+        transform = A.Compose(transforms, keypoint_params=A.KeypointParams(format='xy', remove_invisible=False))
+
         try: num_aug = int(self.entry_aug_count.get())
         except ValueError: num_aug = 1
 
         berhasil = 0
-        for img_name in os.listdir(src_img_dir):
-            if not img_name.lower().endswith(('.jpg', '.png')): continue
-            base_name = os.path.splitext(img_name)[0]
+        for txt_name in txt_files:
+            base_name = os.path.splitext(txt_name)[0]
             
-            shutil.copy(os.path.join(src_img_dir, img_name), os.path.join(out_img_dir, img_name))
-            if os.path.exists(os.path.join(src_lbl_dir, base_name + '.txt')):
-                shutil.copy(os.path.join(src_lbl_dir, base_name + '.txt'), os.path.join(out_lbl_dir, base_name + '.txt'))
-            
-            for i in range(num_aug):
-                new_img_name = f"{base_name}_aug{i}.jpg"
-                new_lbl_name = f"{base_name}_aug{i}.txt"
-                shutil.copy(os.path.join(src_img_dir, img_name), os.path.join(out_img_dir, new_img_name))
-                if os.path.exists(os.path.join(src_lbl_dir, base_name + '.txt')):
-                    shutil.copy(os.path.join(src_lbl_dir, base_name + '.txt'), os.path.join(out_lbl_dir, new_lbl_name))
+            # Cerdas Mencari Gambar: Cek di folder Export dulu, kalau tidak ada cari di Raw_Images
+            img_path = os.path.join(export_dir, base_name + '.jpg')
+            if not os.path.exists(img_path):
+                img_path = os.path.join(raw_dir, base_name + '.jpg')
+                
+            if not os.path.exists(img_path):
+                continue # Lewati jika gambar aslinya benar-benar hilang
+                
+            img = cv2.imread(img_path)
+            if img is None: continue
+            h, w = img.shape[:2]
+
+            # Baca titik koordinat dari file txt
+            classes = []
+            keypoints = []
+            with open(os.path.join(export_dir, txt_name), 'r') as f:
+                for line in f.readlines():
+                    parts = line.strip().split()
+                    if len(parts) >= 9: # Format YOLO OBB: Class X1 Y1 X2 Y2 X3 Y3 X4 Y4
+                        classes.append(parts[0])
+                        # Denormalisasi (kali width & height)
+                        pts = [float(p) for p in parts[1:]]
+                        keypoints.extend([
+                            (pts[0]*w, pts[1]*h), (pts[2]*w, pts[3]*h),
+                            (pts[4]*w, pts[5]*h), (pts[6]*w, pts[7]*h)
+                        ])
+
+            # Simpan Data Asli ke folder Augmented
+            cv2.imwrite(os.path.join(out_img_dir, f"{base_name}.jpg"), img)
+            shutil.copy(os.path.join(export_dir, txt_name), os.path.join(out_lbl_dir, txt_name))
+
+            # Proses Variasi Augmentasi
+            if len(transforms) > 0 and len(keypoints) > 0:
+                for i in range(num_aug):
+                    augmented = transform(image=img, keypoints=keypoints)
+                    aug_img = augmented['image']
+                    aug_kps = augmented['keypoints']
+
+                    new_base = f"{base_name}_aug{i}"
+                    cv2.imwrite(os.path.join(out_img_dir, f"{new_base}.jpg"), aug_img)
+
+                    # Tulis kembali file TXT dengan format YOLO OBB
+                    with open(os.path.join(out_lbl_dir, f"{new_base}.txt"), 'w') as f:
+                        idx = 0
+                        for cls in classes:
+                            kp = aug_kps[idx:idx+4]
+                            idx += 4
+                            norm_kp = []
+                            # Normalisasi kembali (dibagi width & height) dan pastikan tidak keluar batas 0-1
+                            for px, py in kp:
+                                norm_kp.extend([max(0, min(1, px/w)), max(0, min(1, py/h))])
+                            
+                            line_str = f"{cls} " + " ".join([f"{v:.6f}" for v in norm_kp]) + "\n"
+                            f.write(line_str)
             berhasil += 1
 
-        messagebox.showinfo("Sukses", f"Augmentasi selesai!\n{berhasil} gambar berhasil dilipatgandakan.")
+        messagebox.showinfo("Sukses", f"Augmentasi Nyata selesai!\n{berhasil} data berhasil diproses dan dipisah otomatis ke folder 'images' dan 'labels'.")
 
     # ================= TAB 3: SPLIT & YAML =================
     def setup_tab_split(self):
@@ -183,7 +243,7 @@ class YoloDataPipelineApp:
         tk.Label(frame_ratio, text="Val (%):").pack(side="left"); self.e_vl = tk.Entry(frame_ratio, width=4); self.e_vl.insert(0, "10"); self.e_vl.pack(side="left", padx=5)
         tk.Label(frame_ratio, text="Test (%):").pack(side="left"); self.e_ts = tk.Entry(frame_ratio, width=4); self.e_ts.insert(0, "10"); self.e_ts.pack(side="left", padx=5)
 
-        tk.Label(self.tab_split, text="Nama kelas akan dibaca otomatis dari\nfile classes.txt di folder project.", fg="green").pack(pady=10)
+        tk.Label(self.tab_split, text="Nama kelas dibaca dari classes.txt", fg="green").pack(pady=10)
         tk.Button(self.tab_split, text="SPLIT & BUAT DATASET.YAML", bg="#ff9800", fg="white", font=("Arial", 10, "bold"), command=self.run_split).pack(pady=25, fill="x", padx=50)
 
     def run_split(self):
@@ -196,12 +256,7 @@ class YoloDataPipelineApp:
         if not os.path.exists(os.path.join(src_dir, 'images')):
             messagebox.showerror("Error", "Belum ada data di folder '3_Augmented'.")
             return
-            
-        if not os.path.exists(classes_file):
-            messagebox.showerror("Error", "File classes.txt tidak ditemukan di folder project!")
-            return
 
-        # Baca kelas dari file
         with open(classes_file, "r") as f:
             classes = [line.strip() for line in f.readlines() if line.strip()]
 
@@ -231,7 +286,7 @@ class YoloDataPipelineApp:
         for i, c in enumerate(classes): yaml_content += f"  {i}: {c}\n"
         
         with open(yaml_path, 'w') as f: f.write(yaml_content)
-        messagebox.showinfo("Selesai", f"Dataset siap di folder '4_YOLO_Ready'!\nFile dataset.yaml telah dibuat menggunakan kelas dari classes.txt.")
+        messagebox.showinfo("Selesai", f"Dataset siap di folder '4_YOLO_Ready'!")
 
 if __name__ == "__main__":
     root = tk.Tk()
